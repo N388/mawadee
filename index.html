@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1c1c2e">
+<title>مواضيعي معهم</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    font-family: -apple-system, "Segoe UI", Tahoma, sans-serif;
+    background:#1c1c2e; color:#f0f0f5; min-height:100vh;
+  }
+  .container { max-width:520px; margin:0 auto; padding:20px 16px 100px; }
+  h1 { font-size:22px; text-align:center; margin:16px 0 6px; }
+  .subtitle { text-align:center; color:#9a9ab0; font-size:13px; margin-bottom:20px; }
+
+  .add-bar { display:flex; gap:8px; margin-bottom:18px; }
+  input[type="text"] {
+    flex:1; background:#2a2a44; border:1px solid #3a3a5c; border-radius:12px;
+    padding:12px 14px; color:#f0f0f5; font-size:16px; outline:none;
+  }
+  input[type="text"]:focus { border-color:#6c63ff; }
+  button { cursor:pointer; font-size:16px; }
+  .btn-primary {
+    background:#6c63ff; color:#fff; border:none; border-radius:12px; padding:0 18px; font-weight:600;
+  }
+  .btn-primary:active { background:#5a52d5; }
+
+  .people-grid { display:flex; flex-direction:column; gap:10px; }
+  .person-card {
+    background:#262640; border:1px solid #35355a; border-radius:14px; padding:14px 16px;
+    display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:background .15s;
+  }
+  .person-card:active { background:#2f2f50; }
+  .person-name { font-size:17px; font-weight:600; }
+  .badge {
+    background:#6c63ff; color:#fff; border-radius:20px; font-size:13px;
+    padding:3px 11px; min-width:28px; text-align:center;
+  }
+  .empty { text-align:center; color:#7a7a95; margin-top:40px; font-size:15px; line-height:1.8; }
+
+  /* صفحة المواضيع */
+  #topicsView { display:none; }
+  .back-btn {
+    background:none; border:none; color:#8b8bd0; font-size:16px; padding:8px 0; margin-bottom:10px;
+  }
+  .person-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .person-header h2 { font-size:21px; }
+  .del-person { background:none; border:none; color:#e05a5a; font-size:13px; }
+  .topic-item {
+    background:#262640; border:1px solid #35355a; border-radius:12px; padding:13px 14px;
+    margin-bottom:9px; display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .topic-text { font-size:16px; flex:1; }
+  .topic-item.done .topic-text { color:#7a7a95; text-decoration:line-through; }
+  .topic-actions { display:flex; gap:6px; }
+  .icon-btn {
+    background:#2f2f50; border:none; border-radius:8px; color:#c9c9e0;
+    padding:6px 10px; font-size:15px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- قائمة الأشخاص -->
+  <div id="peopleView">
+    <h1>مواضيعي معهم</h1>
+    <p class="subtitle">اكتب الشخص ثم أضف المواضيع التي تريد مناقشتها معه</p>
+    <div class="add-bar">
+      <input type="text" id="newPerson" placeholder="اسم الشخص..." onkeydown="if(event.key==='Enter')addPerson()">
+      <button class="btn-primary" onclick="addPerson()">إضافة</button>
+    </div>
+    <div class="people-grid" id="peopleList"></div>
+    <p class="empty" id="emptyMsg">لا يوجد أشخاص بعد.<br>أضف شخصاً لتبدأ بتجميع المواضيع.</p>
+  </div>
+
+  <!-- مواضيع شخص محدد -->
+  <div id="topicsView">
+    <button class="back-btn" onclick="showPeople()">→ رجوع للقائمة</button>
+    <div class="person-header">
+      <h2 id="personTitle"></h2>
+      <button class="del-person" onclick="deletePerson()">حذف الشخص</button>
+    </div>
+    <div class="add-bar">
+      <input type="text" id="newTopic" placeholder="السؤال أو الموضوع..." onkeydown="if(event.key==='Enter')addTopic()">
+      <button class="btn-primary" onclick="addTopic()">إضافة</button>
+    </div>
+    <div id="topicList"></div>
+    <p class="empty" id="noTopics">لا توجد مواضيع مع هذا الشخص بعد.</p>
+  </div>
+
+</div>
+
+<script>
+let data = JSON.parse(localStorage.getItem("topicsApp") || "{}");
+let currentPerson = null;
+
+function save() { localStorage.setItem("topicsApp", JSON.stringify(data)); }
+
+function addPerson() {
+  const inp = document.getElementById("newPerson");
+  const name = inp.value.trim();
+  if (!name) return;
+  if (!data[name]) data[name] = [];
+  inp.value = "";
+  save();
+  renderPeople();
+  openPerson(name);
+}
+
+function renderPeople() {
+  const list = document.getElementById("peopleList");
+  list.innerHTML = "";
+  const names = Object.keys(data);
+  document.getElementById("emptyMsg").style.display = names.length ? "none" : "block";
+  names.sort().forEach(name => {
+    const card = document.createElement("div");
+    card.className = "person-card";
+    const pending = data[name].filter(t => !t.done).length;
+    card.innerHTML = `<span class="person-name"></span><span class="badge">${pending}</span>`;
+    card.querySelector(".person-name").textContent = name;
+    card.onclick = () => openPerson(name);
+    list.appendChild(card);
+  });
+}
+
+function openPerson(name) {
+  currentPerson = name;
+  document.getElementById("peopleView").style.display = "none";
+  document.getElementById("topicsView").style.display = "block";
+  document.getElementById("personTitle").textContent = name;
+  renderTopics();
+  document.getElementById("newTopic").focus();
+}
+
+function showPeople() {
+  currentPerson = null;
+  document.getElementById("topicsView").style.display = "none";
+  document.getElementById("peopleView").style.display = "block";
+  renderPeople();
+}
+
+function addTopic() {
+  const inp = document.getElementById("newTopic");
+  const text = inp.value.trim();
+  if (!text || !currentPerson) return;
+  data[currentPerson].push({ text, done: false });
+  inp.value = "";
+  save();
+  renderTopics();
+  inp.focus();
+}
+
+function renderTopics() {
+  const list = document.getElementById("topicList");
+  list.innerHTML = "";
+  const topics = data[currentPerson] || [];
+  document.getElementById("noTopics").style.display = topics.length ? "none" : "block";
+  topics.forEach((t, i) => {
+    const div = document.createElement("div");
+    div.className = "topic-item" + (t.done ? " done" : "");
+    const span = document.createElement("span");
+    span.className = "topic-text";
+    span.textContent = t.text;
+    const actions = document.createElement("div");
+    actions.className = "topic-actions";
+    const doneBtn = document.createElement("button");
+    doneBtn.className = "icon-btn";
+    doneBtn.textContent = t.done ? "↩️" : "✔️";
+    doneBtn.onclick = () => { t.done = !t.done; save(); renderTopics(); renderPeople(); };
+    const delBtn = document.createElement("button");
+    delBtn.className = "icon-btn";
+    delBtn.textContent = "🗑";
+    delBtn.onclick = () => {
+      if (confirm("حذف هذا الموضوع نهائياً؟")) { data[currentPerson].splice(i,1); save(); renderTopics(); renderPeople(); }
+    };
+    actions.appendChild(doneBtn); actions.appendChild(delBtn);
+    div.appendChild(span); div.appendChild(actions);
+    list.appendChild(div);
+  });
+}
+
+function deletePerson() {
+  if (confirm("حذف " + currentPerson + " وكل مواضيعه؟")) {
+    delete data[currentPerson];
+    save();
+    showPeople();
+  }
+}
+
+renderPeople();
+</script>
+</body>
+</html>
